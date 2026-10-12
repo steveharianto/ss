@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Screenshot Stitcher</title>
+
+  <!-- iOS Home Screen & PWA Configuration -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Stitch">
+  <link rel="apple-touch-icon" href="logo.png">
+  <link rel="icon" type="image/png" href="logo.png">
+
+  <style>
+    :root {
+      --bg: #000000;
+      --card: #121214;
+      --border: #26262a;
+      --text: #ffffff;
+      --muted: #8e8e93;
+      --accent: #0a84ff;
+      --danger: #ff453a;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
+      padding-top: max(16px, env(safe-area-inset-top));
+      padding-bottom: max(32px, env(safe-area-inset-bottom));
+      padding-left: max(16px, env(safe-area-inset-left));
+      padding-right: max(16px, env(safe-area-inset-right));
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+    }
+    .container {
+      width: 100%;
+      max-width: 480px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    h1 {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      margin-bottom: 2px;
+    }
+    .subtitle {
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+    .panel {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .file-drop {
+      border: 1.5px dashed var(--border);
+      border-radius: 12px;
+      padding: 24px 16px;
+      text-align: center;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+    .file-drop span {
+      font-size: 14px;
+      font-weight: 500;
+    }
+    .file-drop small {
+      font-size: 12px;
+      color: var(--muted);
+    }
+    input[type="file"] {
+      display: none;
+    }
+    .queue-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .queue-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .queue-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #1a1a1e;
+      border: 1px solid var(--border);
+      padding: 8px 12px;
+      border-radius: 10px;
+      gap: 12px;
+    }
+    .queue-thumb {
+      width: 38px;
+      height: 52px;
+      border-radius: 4px;
+      object-fit: cover;
+      background: #000;
+      border: 1px solid var(--border);
+    }
+    .queue-meta {
+      flex: 1;
+      font-size: 13px;
+      font-family: ui-monospace, monospace;
+      color: #e5e5ea;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .btn-group {
+      display: flex;
+      gap: 6px;
+    }
+    button {
+      background: #242428;
+      color: #fff;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      min-height: 44px;
+      min-width: 44px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      padding: 0 12px;
+      user-select: none;
+    }
+    button:active {
+      background: #323238;
+    }
+    .btn-primary {
+      background: var(--text);
+      color: #000;
+      font-weight: 600;
+      border: none;
+      width: 100%;
+    }
+    .btn-primary:active {
+      background: #d1d1d6;
+    }
+    .btn-share {
+      background: var(--accent);
+      color: #fff;
+      font-weight: 600;
+      border: none;
+      width: 100%;
+    }
+    .btn-share:active {
+      opacity: 0.85;
+    }
+    .btn-danger {
+      color: var(--danger);
+    }
+    .options-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .input-box {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .input-box label {
+      font-size: 11px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .input-box input {
+      background: #1a1a1e;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: #fff;
+      padding: 10px;
+      font-size: 14px;
+      font-family: ui-monospace, monospace;
+      min-height: 44px;
+    }
+    .seam-item {
+      background: #18181c;
+      border: 1px solid var(--border);
+      padding: 10px;
+      border-radius: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .seam-item span {
+      font-size: 12px;
+      color: var(--muted);
+      display: flex;
+      justify-content: space-between;
+    }
+    .seam-controls {
+      display: flex;
+      gap: 6px;
+    }
+    .seam-controls button {
+      flex: 1;
+      padding: 0;
+      font-family: ui-monospace, monospace;
+      font-size: 12px;
+    }
+    #preview-container {
+      max-height: 500px;
+      overflow-y: auto;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: #08080a;
+      display: flex;
+      justify-content: center;
+      padding: 12px;
+    }
+    #preview-img {
+      max-width: 100%;
+      height: auto;
+      border-radius: 6px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    }
+    .status-text {
+      font-size: 12px;
+      color: var(--muted);
+      text-align: center;
+      min-height: 16px;
+    }
+    .hidden {
+      display: none !important;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <div>
+      <h1>Screenshot Stitcher</h1>
+      <p class="subtitle">Client-side pixel matching with native resolution export.</p>
+    </div>
+
+    <!-- Upload Panel -->
+    <div class="panel">
+      <div class="file-drop" id="drop-zone" onclick="document.getElementById('file-input').click()">
+        <span>Tap to Select Screenshots</span>
+        <small>Multi-select supported • Kept 100% on device</small>
+      </div>
+      <input type="file" id="file-input" accept="image/*" multiple>
+
+      <div class="options-grid">
+        <div class="input-box">
+          <label>Top Cut (Status Bar)</label>
+          <input type="number" id="top-crop" value="140">
+        </div>
+        <div class="input-box">
+          <label>Bottom Cut (Home Bar)</label>
+          <input type="number" id="bot-crop" value="100">
+        </div>
+      </div>
+    </div>
+
+    <!-- Queue Panel -->
+    <div class="panel hidden" id="queue-panel">
+      <div class="queue-header">
+        <span>Screenshots Queue</span>
+        <div class="btn-group">
+          <button style="min-height:32px; padding:0 8px; font-size:11px;" id="reverse-btn">Reverse Order</button>
+          <button style="min-height:32px; padding:0 8px; font-size:11px;" id="clear-btn" class="btn-danger">Clear</button>
+        </div>
+      </div>
+      <div class="queue-list" id="queue-list"></div>
+      <button class="btn-primary" id="stitch-btn">Run Stitch</button>
+    </div>
+
+    <!-- Processing Status -->
+    <div class="status-text" id="status-msg"></div>
+
+    <!-- Seam Adjustments Panel -->
+    <div class="panel hidden" id="seam-panel">
+      <div class="queue-header">
+        <span>Seam Fine-Tuning</span>
+        <span id="seam-info" style="font-family:ui-monospace; font-size:11px;"></span>
+      </div>
+      <div id="seams-list" style="display:flex; flex-direction:column; gap:8px;"></div>
+    </div>
+
+    <!-- Output Panel -->
+    <div class="panel hidden" id="output-panel">
+      <div class="queue-header">
+        <span>Result</span>
+        <span id="res-dims" style="font-family:ui-monospace; font-size:11px;"></span>
+      </div>
+      <div id="preview-container">
+        <img id="preview-img" alt="Stitched Output">
+      </div>
+      <button class="btn-share" id="share-btn">Save to Photos (iOS Share)</button>
+      <button id="download-btn" style="width:100%;">Download PNG</button>
+    </div>
+  </div>
+
+  <script>
+    let images = [];       // Loaded Image elements + meta
+    let seamCuts = [];     // Stored seam cut positions for manual fine-tuning
+    let currentBlob = null;
+
+    const fileInput = document.getElementById('file-input');
+    const queuePanel = document.getElementById('queue-panel');
+    const queueList = document.getElementById('queue-list');
+    const stitchBtn = document.getElementById('stitch-btn');
+    const statusMsg = document.getElementById('status-msg');
+    const outputPanel = document.getElementById('output-panel');
+    const previewImg = document.getElementById('preview-img');
+    const resDims = document.getElementById('res-dims');
+    const seamPanel = document.getElementById('seam-panel');
+    const seamsList = document.getElementById('seams-list');
+    const shareBtn = document.getElementById('share-btn');
+    const downloadBtn = document.getElementById('download-btn');
+    const reverseBtn = document.getElementById('reverse-btn');
+    const clearBtn = document.getElementById('clear-btn');
+    const topCropInp = document.getElementById('top-crop');
+    const botCropInp = document.getElementById('bot-crop');
+
+    fileInput.addEventListener('change', async (e) => {
+      const files = Array.from(e.target.files);
+      if (!files.length) return;
+      statusMsg.textContent = 'Loading selected images...';
+
+      for (const file of files) {
+        const img = await loadImageFile(file);
+        images.push({ file, img, name: file.name });
+      }
+      fileInput.value = '';
+      statusMsg.textContent = '';
+      renderQueue();
+    });
+
+    function loadImageFile(file) {
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+          const img = new Image();
+          img.onload = () => resolve(img);
+          img.src = evt.target.result;
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+
+    function renderQueue() {
+      queueList.innerHTML = '';
+      if (!images.length) {
+        queuePanel.classList.add('hidden');
+        outputPanel.classList.add('hidden');
+        seamPanel.classList.add('hidden');
+        return;
+      }
+      queuePanel.classList.remove('hidden');
+
+      images.forEach((item, idx) => {
+        const row = document.createElement('div');
+        row.className = 'queue-item';
+        row.innerHTML = `
+          <img class="queue-thumb" src="${item.img.src}">
+          <div class="queue-meta">${idx + 1}. ${item.name} (${item.img.naturalWidth}×${item.img.naturalHeight})</div>
+          <div class="btn-group">
+            <button ${idx === 0 ? 'disabled style="opacity:0.3"' : ''} onclick="moveQueue(${idx}, -1)">▲</button>
+            <button ${idx === images.length - 1 ? 'disabled style="opacity:0.3"' : ''} onclick="moveQueue(${idx}, 1)">▼</button>
+            <button class="btn-danger" onclick="removeQueue(${idx})">✕</button>
+          </div>
+        `;
+        queueList.appendChild(row);
+      });
+    }
+
+    window.moveQueue = (idx, dir) => {
+      const target = idx + dir;
+      if (target < 0 || target >= images.length) return;
+      const temp = images[idx];
+      images[idx] = images[target];
+      images[target] = temp;
+      renderQueue();
+    };
+
+    window.removeQueue = (idx) => {
+      images.splice(idx, 1);
+      renderQueue();
+    };
+
+    reverseBtn.addEventListener('click', () => {
+      images.reverse();
+      renderQueue();
+    });
+
+    clearBtn.addEventListener('click', () => {
+      images = [];
+      seamCuts = [];
+      currentBlob = null;
+      renderQueue();
+    });
+
+    stitchBtn.addEventListener('click', async () => {
+      if (images.length < 2) {
+        alert('Please select at least 2 screenshots to stitch.');
+        return;
+      }
+      statusMsg.textContent = 'Analyzing pixel overlaps...';
+      stitchBtn.disabled = true;
+
+      // Allow UI to update before synchronous pixel processing
+      setTimeout(async () => {
+        try {
+          await runStitchingAlgorithm();
+        } catch (err) {
+          console.error(err);
+          statusMsg.textContent = 'Error: ' + err.message;
+        } finally {
+          stitchBtn.disabled = false;
+        }
+      }, 50);
+    });
+
+    async function runStitchingAlgorithm() {
+      const topCrop = parseInt(topCropInp.value, 10) || 140;
+      const botCrop = parseInt(botCropInp.value, 10) || 100;
+
+      seamCuts = [];
+
+      for (let i = 0; i < images.length - 1; i++) {
+        const topImg = images[i].img;
+        const botImg = images[i + 1].img;
+
+        statusMsg.textContent = `Matching pair ${i + 1} of ${images.length - 1}...`;
+        const cut = findBestSeam(topImg, botImg, topCrop, botCrop);
+        seamCuts.push(cut);
+      }
+
+      renderSeamControls();
+      await renderFinalCanvas();
+      statusMsg.textContent = 'Stitch completed.';
+    }
+
+    // High performance pixel-overlap finder
+    function findBestSeam(imgA, imgB, topCrop, botCrop) {
+      const w = Math.min(imgA.naturalWidth, imgB.naturalWidth);
+      const hA = imgA.naturalHeight;
+      const hB = imgB.naturalHeight;
+
+      // Off-screen canvas contexts
+      const cvA = document.createElement('canvas');
+      cvA.width = w; cvA.height = hA;
+      const ctxA = cvA.getContext('2d', { willReadFrequently: true });
+      ctxA.drawImage(imgA, 0, 0);
+
+      const cvB = document.createElement('canvas');
+      cvB.width = w; cvB.height = hB;
+      const ctxB = cvB.getContext('2d', { willReadFrequently: true });
+      ctxB.drawImage(imgB, 0, 0);
+
+      // Choose 32 columns between 15% and 85% width to bypass vertical scrollbars
+      const sampleCols = [];
+      const colStart = Math.floor(w * 0.15);
+      const colEnd = Math.floor(w * 0.85);
+      const stepX = Math.max(1, Math.floor((colEnd - colStart) / 32));
+      for (let x = colStart; x < colEnd; x += stepX) {
+        sampleCols.push(x);
+      }
+
+      // 1. Pick a feature-rich strip from Image B below its top status bar
+      const stripH = 36;
+      let bestStripY = topCrop + 20;
+      let maxGrad = -1;
+
+      // Scan candidate strip locations in Image B to find high contrast text
+      for (let y = topCrop + 10; y < Math.min(topCrop + 320, hB - botCrop - stripH); y += 6) {
+        let grad = 0;
+        const d0 = ctxB.getImageData(0, y, w, 1).data;
+        const d1 = ctxB.getImageData(0, y + 2, w, 1).data;
+        for (let col of sampleCols) {
+          const idx = col * 4;
+          grad += Math.abs(d0[idx] - d1[idx]) + Math.abs(d0[idx + 1] - d1[idx + 1]);
+        }
+        if (grad > maxGrad) {
+          maxGrad = grad;
+          bestStripY = y;
+        }
+      }
+
+      // Read template data from Image B
+      const stripData = ctxB.getImageData(0, bestStripY, w, stripH).data;
+
+      // 2. Correlate strip against Image A
+      let minDiff = Infinity;
+      let bestMatchYA = -1;
+
+      // Coarse Pass (step 4px)
+      const searchStart = topCrop;
+      const searchEnd = hA - botCrop - stripH;
+
+      for (let yA = searchStart; yA < searchEnd; yA += 4) {
+        const rowData = ctxA.getImageData(0, yA, w, stripH).data;
+        let diff = 0;
+        for (let r = 0; r < stripH; r += 3) {
+          const rowOffset = r * w * 4;
+          for (let col of sampleCols) {
+            const pxIdx = rowOffset + col * 4;
+            diff += Math.abs(rowData[pxIdx] - stripData[pxIdx]) +
+                    Math.abs(rowData[pxIdx + 1] - stripData[pxIdx + 1]) +
+                    Math.abs(rowData[pxIdx + 2] - stripData[pxIdx + 2]);
+          }
+        }
+        if (diff < minDiff) {
+          minDiff = diff;
+          bestMatchYA = yA;
+        }
+      }
+
+      // Fine Pass (step 1px around best candidate)
+      const fineStart = Math.max(searchStart, bestMatchYA - 6);
+      const fineEnd = Math.min(searchEnd, bestMatchYA + 6);
+      for (let yA = fineStart; yA <= fineEnd; yA++) {
+        const rowData = ctxA.getImageData(0, yA, w, stripH).data;
+        let diff = 0;
+        for (let r = 0; r < stripH; r += 2) {
+          const rowOffset = r * w * 4;
+          for (let col of sampleCols) {
+            const pxIdx = rowOffset + col * 4;
+            diff += Math.abs(rowData[pxIdx] - stripData[pxIdx]) +
+                    Math.abs(rowData[pxIdx + 1] - stripData[pxIdx + 1]) +
+                    Math.abs(rowData[pxIdx + 2] - stripData[pxIdx + 2]);
+          }
+        }
+        if (diff < minDiff) {
+          minDiff = diff;
+          bestMatchYA = yA;
+        }
+      }
+
+      // If matching was weak, fallback to full image subtraction offset
+      if (bestMatchYA === -1) {
+        bestMatchYA = hA - (hB - bestStripY);
+      }
+
+      return {
+        cutA: bestMatchYA,
+        cutB: bestStripY
+      };
+    }
+
+    function renderSeamControls() {
+      seamsList.innerHTML = '';
+      seamPanel.classList.remove('hidden');
+
+      seamCuts.forEach((seam, idx) => {
+        const item = document.createElement('div');
+        item.className = 'seam-item';
+        item.innerHTML = `
+          <span>
+            <strong>Joint ${idx + 1} (${idx + 1} ➔ ${idx + 2})</strong>
+            <span>Cut: ${seam.cutA}px</span>
+          </span>
+          <div class="seam-controls">
+            <button onclick="adjustSeam(${idx}, -5)">-5px</button>
+            <button onclick="adjustSeam(${idx}, -1)">-1px</button>
+            <button onclick="adjustSeam(${idx}, 1)">+1px</button>
+            <button onclick="adjustSeam(${idx}, 5)">+5px</button>
+          </div>
+        `;
+        seamsList.appendChild(item);
+      });
+    }
+
+    window.adjustSeam = (idx, delta) => {
+      seamCuts[idx].cutA += delta;
+      renderSeamControls();
+      renderFinalCanvas();
+    };
+
+    async function renderFinalCanvas() {
+      if (!images.length) return;
+
+      const baseWidth = images[0].img.naturalWidth;
+
+      // Calculate total height:
+      // Image 0: from 0 to seamCuts[0].cutA
+      // Image k: from seamCuts[k-1].cutB to seamCuts[k].cutA
+      // Final image: from seamCuts[last].cutB to full height
+      let totalHeight = 0;
+      const slices = [];
+
+      for (let i = 0; i < images.length; i++) {
+        const img = images[i].img;
+        let srcY = 0;
+        let srcH = 0;
+
+        if (i === 0) {
+          srcY = 0;
+          srcH = seamCuts[0].cutA;
+        } else if (i === images.length - 1) {
+          srcY = seamCuts[i - 1].cutB;
+          srcH = img.naturalHeight - srcY;
+        } else {
+          srcY = seamCuts[i - 1].cutB;
+          srcH = seamCuts[i].cutA - srcY;
+        }
+
+        slices.push({ img, srcY, srcH });
+        totalHeight += srcH;
+      }
+
+      // Render native full-resolution output canvas
+      const outCv = document.createElement('canvas');
+      outCv.width = baseWidth;
+      outCv.height = totalHeight;
+      const outCtx = outCv.getContext('2d');
+
+      let destY = 0;
+      for (const slice of slices) {
+        outCtx.drawImage(
+          slice.img,
+          0, slice.srcY, baseWidth, slice.srcH,
+          0, destY, baseWidth, slice.srcH
+        );
+        destY += slice.srcH;
+      }
+
+      resDims.textContent = `${baseWidth} × ${totalHeight}px`;
+
+      outCv.toBlob((blob) => {
+        currentBlob = blob;
+        previewImg.src = URL.createObjectURL(blob);
+        outputPanel.classList.remove('hidden');
+      }, 'image/png');
+    }
+
+    // iOS Safari Web Share API ("Save to Photos")
+    shareBtn.addEventListener('click', async () => {
+      if (!currentBlob) return;
+      const file = new File([currentBlob], 'stitched.png', { type: 'image/png' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({
+            files: [file],
+            title: 'Stitched Screenshot'
+          });
+        } catch (e) {
+          if (e.name !== 'AbortError') console.error(e);
+        }
+      } else {
+        // Fallback for browsers without File Share support
+        const a = document.createElement('a');
+        a.href = previewImg.src;
+        a.download = 'stitched.png';
+        a.click();
+      }
+    });
+
+    downloadBtn.addEventListener('click', () => {
+      if (!currentBlob) return;
+      const a = document.createElement('a');
+      a.href = previewImg.src;
+      a.download = 'stitched.png';
+      a.click();
+    });
+  </script>
+</body>
+</html>
