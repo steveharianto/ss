@@ -91,6 +91,57 @@
     input[type="file"] {
       display: none;
     }
+    .presets-row {
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+    }
+    .preset-btn {
+      flex: 1;
+      min-height: 34px;
+      font-size: 12px;
+      padding: 0 8px;
+      background: #1a1a1e;
+      white-space: nowrap;
+    }
+    .preset-btn.active {
+      background: #2c2c32;
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    .options-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 10px;
+      width: 100%;
+    }
+    .input-box {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 0;
+    }
+    .input-box label {
+      font-size: 11px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .input-box input {
+      width: 100%;
+      min-width: 0;
+      background: #1a1a1e;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: #fff;
+      padding: 10px;
+      font-size: 14px;
+      font-family: ui-monospace, monospace;
+      min-height: 44px;
+    }
     .queue-header {
       display: flex;
       justify-content: space-between;
@@ -179,39 +230,6 @@
     .btn-danger {
       color: var(--danger);
     }
-    .options-grid {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-      gap: 10px;
-      width: 100%;
-    }
-    .input-box {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      min-width: 0;
-    }
-    .input-box label {
-      font-size: 11px;
-      color: var(--muted);
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .input-box input {
-      width: 100%;
-      min-width: 0;
-      background: #1a1a1e;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      color: #fff;
-      padding: 10px;
-      font-size: 14px;
-      font-family: ui-monospace, monospace;
-      min-height: 44px;
-    }
     .seam-item {
       background: #18181c;
       border: 1px solid var(--border);
@@ -238,18 +256,16 @@
       font-size: 12px;
     }
     #preview-container {
-      max-height: 500px;
-      overflow-y: auto;
+      width: 100%;
       border: 1px solid var(--border);
       border-radius: 10px;
       background: #08080a;
-      display: flex;
-      justify-content: center;
-      padding: 12px;
+      padding: 6px;
     }
     #preview-img {
-      max-width: 100%;
+      width: 100%;
       height: auto;
+      display: block;
       border-radius: 6px;
       box-shadow: 0 4px 20px rgba(0,0,0,0.5);
     }
@@ -269,7 +285,7 @@
   <div class="container">
     <div>
       <h1>Screenshot Stitcher</h1>
-      <p class="subtitle">Client-side pixel matching with native resolution export.</p>
+      <p class="subtitle">Client-side pixel matching with zero header leaks.</p>
     </div>
 
     <!-- Upload Panel -->
@@ -280,14 +296,21 @@
       </div>
       <input type="file" id="file-input" accept="image/*" multiple>
 
+      <!-- Preset Selection -->
+      <div class="presets-row">
+        <button class="preset-btn active" id="p-chat" onclick="applyPreset(295, 260, this)">WhatsApp / Chat</button>
+        <button class="preset-btn" id="p-browser" onclick="applyPreset(280, 220, this)">Safari / Browser</button>
+        <button class="preset-btn" id="p-feed" onclick="applyPreset(140, 100, this)">Status Bar Only</button>
+      </div>
+
       <div class="options-grid">
         <div class="input-box">
-          <label>Top Cut (Status Bar)</label>
-          <input type="number" id="top-crop" value="140">
+          <label>Top Cut (Header Height)</label>
+          <input type="number" id="top-crop" value="295">
         </div>
         <div class="input-box">
-          <label>Bottom Cut (Home Bar)</label>
-          <input type="number" id="bot-crop" value="100">
+          <label>Bottom Cut (Input/Bar)</label>
+          <input type="number" id="bot-crop" value="260">
         </div>
       </div>
     </div>
@@ -323,17 +346,20 @@
         <span>Result</span>
         <span id="res-dims" style="font-family:ui-monospace; font-size:11px;"></span>
       </div>
+      <button class="btn-share" id="share-btn">Save to Photos (iOS Share)</button>
+      <button id="download-btn" style="width:100%;">Download PNG</button>
+      
       <div id="preview-container">
         <img id="preview-img" alt="Stitched Output">
       </div>
-      <button class="btn-share" id="share-btn">Save to Photos (iOS Share)</button>
-      <button id="download-btn" style="width:100%;">Download PNG</button>
+      
+      <button class="btn-share" id="share-btn-bottom">Save to Photos (iOS Share)</button>
     </div>
   </div>
 
   <script>
     let images = [];
-    let seamCuts = [];
+    let seamShifts = []; // Stored scroll displacements per joint
     let currentBlob = null;
 
     const fileInput = document.getElementById('file-input');
@@ -347,11 +373,19 @@
     const seamPanel = document.getElementById('seam-panel');
     const seamsList = document.getElementById('seams-list');
     const shareBtn = document.getElementById('share-btn');
+    const shareBtnBottom = document.getElementById('share-btn-bottom');
     const downloadBtn = document.getElementById('download-btn');
     const reverseBtn = document.getElementById('reverse-btn');
     const clearBtn = document.getElementById('clear-btn');
     const topCropInp = document.getElementById('top-crop');
     const botCropInp = document.getElementById('bot-crop');
+
+    window.applyPreset = (topVal, botVal, el) => {
+      topCropInp.value = topVal;
+      botCropInp.value = botVal;
+      document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+      if (el) el.classList.add('active');
+    };
 
     fileInput.addEventListener('change', async (e) => {
       const files = Array.from(e.target.files);
@@ -363,7 +397,21 @@
         images.push({ file, img, name: file.name });
       }
       fileInput.value = '';
-      statusMsg.textContent = '';
+
+      // Auto-detect sticky header / footer from the first pair if available
+      if (images.length >= 2) {
+        const detected = autoDetectHeaderFooter(images[0].img, images[1].img);
+        if (detected.top > 150) {
+          topCropInp.value = detected.top;
+          statusMsg.textContent = `Auto-detected sticky header: ${detected.top}px`;
+        }
+        if (detected.bot > 120) {
+          botCropInp.value = detected.bot;
+        }
+      } else {
+        statusMsg.textContent = '';
+      }
+
       renderQueue();
     });
 
@@ -377,6 +425,63 @@
         };
         reader.readAsDataURL(file);
       });
+    }
+
+    // Identifies identical sticky rows between consecutive screenshots
+    function autoDetectHeaderFooter(imgA, imgB) {
+      const w = Math.min(imgA.naturalWidth, imgB.naturalWidth);
+      const h = Math.min(imgA.naturalHeight, imgB.naturalHeight);
+
+      const cvA = document.createElement('canvas');
+      cvA.width = w; cvA.height = h;
+      const ctxA = cvA.getContext('2d', { willReadFrequently: true });
+      ctxA.drawImage(imgA, 0, 0);
+
+      const cvB = document.createElement('canvas');
+      cvB.width = w; cvB.height = h;
+      const ctxB = cvB.getContext('2d', { willReadFrequently: true });
+      ctxB.drawImage(imgB, 0, 0);
+
+      const cols = [];
+      for (let x = Math.floor(w * 0.2); x < Math.floor(w * 0.8); x += Math.floor(w * 0.6 / 20)) {
+        cols.push(x);
+      }
+
+      // Check header from y = 140 downwards
+      let detectedTop = 140;
+      for (let y = 140; y < Math.min(500, Math.floor(h * 0.3)); y += 4) {
+        const dA = ctxA.getImageData(0, y, w, 1).data;
+        const dB = ctxB.getImageData(0, y, w, 1).data;
+        let diff = 0;
+        for (let x of cols) {
+          const idx = x * 4;
+          diff += Math.abs(dA[idx] - dB[idx]) + Math.abs(dA[idx + 1] - dB[idx + 1]) + Math.abs(dA[idx + 2] - dB[idx + 2]);
+        }
+        if (diff / (cols.length * 3) < 4.0) {
+          detectedTop = y + 4;
+        } else {
+          break;
+        }
+      }
+
+      // Check footer from bottom upwards
+      let detectedBot = 100;
+      for (let y = h - 110; y > Math.max(h - 500, Math.floor(h * 0.7)); y -= 4) {
+        const dA = ctxA.getImageData(0, y, w, 1).data;
+        const dB = ctxB.getImageData(0, y, w, 1).data;
+        let diff = 0;
+        for (let x of cols) {
+          const idx = x * 4;
+          diff += Math.abs(dA[idx] - dB[idx]) + Math.abs(dA[idx + 1] - dB[idx + 1]) + Math.abs(dA[idx + 2] - dB[idx + 2]);
+        }
+        if (diff / (cols.length * 3) < 4.0) {
+          detectedBot = (h - y) + 4;
+        } else {
+          break;
+        }
+      }
+
+      return { top: detectedTop, bot: detectedBot };
     }
 
     function renderQueue() {
@@ -426,7 +531,7 @@
 
     clearBtn.addEventListener('click', () => {
       images = [];
-      seamCuts = [];
+      seamShifts = [];
       currentBlob = null;
       renderQueue();
     });
@@ -436,7 +541,7 @@
         alert('Please select at least 2 screenshots to stitch.');
         return;
       }
-      statusMsg.textContent = 'Analyzing pixel overlaps...';
+      statusMsg.textContent = 'Calculating scroll alignment...';
       stitchBtn.disabled = true;
 
       setTimeout(async () => {
@@ -452,18 +557,18 @@
     });
 
     async function runStitchingAlgorithm() {
-      const topCrop = parseInt(topCropInp.value, 10) || 140;
-      const botCrop = parseInt(botCropInp.value, 10) || 100;
+      const topCrop = parseInt(topCropInp.value, 10) || 295;
+      const botCrop = parseInt(botCropInp.value, 10) || 260;
 
-      seamCuts = [];
+      seamShifts = [];
 
       for (let i = 0; i < images.length - 1; i++) {
         const topImg = images[i].img;
         const botImg = images[i + 1].img;
 
         statusMsg.textContent = `Matching pair ${i + 1} of ${images.length - 1}...`;
-        const cut = findBestSeam(topImg, botImg, topCrop, botCrop);
-        seamCuts.push(cut);
+        const shift = findScrollDisplacement(topImg, botImg, topCrop, botCrop);
+        seamShifts.push(shift);
       }
 
       renderSeamControls();
@@ -471,7 +576,8 @@
       statusMsg.textContent = 'Stitch completed.';
     }
 
-    function findBestSeam(imgA, imgB, topCrop, botCrop) {
+    // Finds the exact vertical scroll displacement S between two screenshots
+    function findScrollDisplacement(imgA, imgB, topCrop, botCrop) {
       const w = Math.min(imgA.naturalWidth, imgB.naturalWidth);
       const hA = imgA.naturalHeight;
       const hB = imgB.naturalHeight;
@@ -494,11 +600,13 @@
         sampleCols.push(x);
       }
 
+      // Pick template strip from Image B strictly below the header
       const stripH = 36;
-      let bestStripY = topCrop + 20;
+      let templateYB = topCrop + 30;
       let maxGrad = -1;
 
-      for (let y = topCrop + 10; y < Math.min(topCrop + 320, hB - botCrop - stripH); y += 6) {
+      // Scan candidate strips in Image B to locate clear content/text
+      for (let y = topCrop + 20; y < Math.min(topCrop + 320, hB - botCrop - stripH); y += 6) {
         let grad = 0;
         const d0 = ctxB.getImageData(0, y, w, 1).data;
         const d1 = ctxB.getImageData(0, y + 2, w, 1).data;
@@ -508,16 +616,18 @@
         }
         if (grad > maxGrad) {
           maxGrad = grad;
-          bestStripY = y;
+          templateYB = y;
         }
       }
 
-      const stripData = ctxB.getImageData(0, bestStripY, w, stripH).data;
+      const stripData = ctxB.getImageData(0, templateYB, w, stripH).data;
 
+      // Correlate against Image A
       let minDiff = Infinity;
-      let bestMatchYA = -1;
+      let bestYA = -1;
 
-      const searchStart = topCrop;
+      // Coarse Pass (step 4px)
+      const searchStart = templateYB;
       const searchEnd = hA - botCrop - stripH;
 
       for (let yA = searchStart; yA < searchEnd; yA += 4) {
@@ -534,12 +644,13 @@
         }
         if (diff < minDiff) {
           minDiff = diff;
-          bestMatchYA = yA;
+          bestYA = yA;
         }
       }
 
-      const fineStart = Math.max(searchStart, bestMatchYA - 6);
-      const fineEnd = Math.min(searchEnd, bestMatchYA + 6);
+      // Fine Pass (step 1px around best candidate)
+      const fineStart = Math.max(searchStart, bestYA - 6);
+      const fineEnd = Math.min(searchEnd, bestYA + 6);
       for (let yA = fineStart; yA <= fineEnd; yA++) {
         const rowData = ctxA.getImageData(0, yA, w, stripH).data;
         let diff = 0;
@@ -554,31 +665,30 @@
         }
         if (diff < minDiff) {
           minDiff = diff;
-          bestMatchYA = yA;
+          bestYA = yA;
         }
       }
 
-      if (bestMatchYA === -1) {
-        bestMatchYA = hA - (hB - bestStripY);
+      // Fallback if matching failed
+      if (bestYA === -1) {
+        bestYA = hA - botCrop - stripH;
       }
 
-      return {
-        cutA: bestMatchYA,
-        cutB: bestStripY
-      };
+      // Scroll displacement
+      return Math.max(1, bestYA - templateYB);
     }
 
     function renderSeamControls() {
       seamsList.innerHTML = '';
       seamPanel.classList.remove('hidden');
 
-      seamCuts.forEach((seam, idx) => {
+      seamShifts.forEach((shift, idx) => {
         const item = document.createElement('div');
         item.className = 'seam-item';
         item.innerHTML = `
           <span>
             <strong>Joint ${idx + 1} (${idx + 1} ➔ ${idx + 2})</strong>
-            <span>Cut: ${seam.cutA}px</span>
+            <span>Shift: ${shift}px</span>
           </span>
           <div class="seam-controls">
             <button onclick="adjustSeam(${idx}, -5)">-5px</button>
@@ -592,7 +702,7 @@
     }
 
     window.adjustSeam = (idx, delta) => {
-      seamCuts[idx].cutA += delta;
+      seamShifts[idx] += delta;
       renderSeamControls();
       renderFinalCanvas();
     };
@@ -600,6 +710,7 @@
     async function renderFinalCanvas() {
       if (!images.length) return;
 
+      const topCrop = parseInt(topCropInp.value, 10) || 295;
       const baseWidth = images[0].img.naturalWidth;
       let totalHeight = 0;
       const slices = [];
@@ -610,14 +721,17 @@
         let srcH = 0;
 
         if (i === 0) {
+          // Top screenshot: includes original header (y=0) down to TopCut + shift
           srcY = 0;
-          srcH = seamCuts[0].cutA;
+          srcH = topCrop + (seamShifts[0] || (img.naturalHeight - topCrop));
         } else if (i === images.length - 1) {
-          srcY = seamCuts[i - 1].cutB;
-          srcH = img.naturalHeight - srcY;
+          // Last screenshot: starts STRICTLY at TopCut (NO header leak) down to full height
+          srcY = topCrop;
+          srcH = img.naturalHeight - topCrop;
         } else {
-          srcY = seamCuts[i - 1].cutB;
-          srcH = seamCuts[i].cutA - srcY;
+          // Middle screenshots: starts strictly at TopCut down to next shift
+          srcY = topCrop;
+          srcH = seamShifts[i] || (img.naturalHeight - topCrop);
         }
 
         slices.push({ img, srcY, srcH });
@@ -648,7 +762,7 @@
       }, 'image/png');
     }
 
-    shareBtn.addEventListener('click', async () => {
+    async function handleShare() {
       if (!currentBlob) return;
       const file = new File([currentBlob], 'stitched.png', { type: 'image/png' });
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
@@ -666,7 +780,10 @@
         a.download = 'stitched.png';
         a.click();
       }
-    });
+    }
+
+    shareBtn.addEventListener('click', handleShare);
+    shareBtnBottom.addEventListener('click', handleShare);
 
     downloadBtn.addEventListener('click', () => {
       if (!currentBlob) return;
